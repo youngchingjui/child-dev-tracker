@@ -2,3 +2,28 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model Child {
+  id           String        @id @default(cuid())
+  name         String
+  dateOfBirth  DateTime?
+  gender       String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  measurements Measurement[]
+}
+
+model Measurement {
+  id                     String   @id @default(cuid())
+  child                  Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  childId                String
+  date                   DateTime
+  heightCm               Float?
+  weightKg               Float?
+  headCircumferenceCm    Float?
+  note                   String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([childId, date])
+}
