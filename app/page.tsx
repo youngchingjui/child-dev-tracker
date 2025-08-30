@@ -1,11 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-type Child = {
+ type Child = {
   id: string;
   name: string;
   birthDate: string; // ISO date string YYYY-MM-DD
+  measurements?: Array<{
+    id: string;
+    date: string;
+    heightCm: number;
+    weightKg: number;
+  }>;
 };
 
 const STORAGE_KEY = "children";
@@ -36,7 +43,7 @@ export default function Home() {
       if (raw) {
         const parsed = JSON.parse(raw) as Child[];
         if (Array.isArray(parsed)) {
-          setChildren(parsed);
+          setChildren(parsed.map((c) => ({ ...c, measurements: c.measurements ?? [] })));
         }
       }
     } catch {
@@ -84,7 +91,7 @@ export default function Home() {
       setError(v);
       return;
     }
-    const newChild: Child = { id: uid(), name: name.trim(), birthDate };
+    const newChild: Child = { id: uid(), name: name.trim(), birthDate, measurements: [] };
     setChildren((prev) => [...prev, newChild]);
     resetForm();
   }
@@ -130,9 +137,9 @@ export default function Home() {
   return (
     <div className="font-sans min-h-screen p-6 sm:p-10 max-w-3xl mx-auto">
       <header className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-semibold">Children</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold">Child Growth Tracker</h1>
         <p className="text-sm text-foreground/70 mt-1">
-          Add, edit, and remove your children. Data is saved in your browser.
+          Add children and track height, weight, and BMI over time. Data is saved in your browser.
         </p>
       </header>
 
@@ -228,6 +235,12 @@ export default function Home() {
                     </>
                   ) : (
                     <>
+                      <Link
+                        href={`/children/${c.id}`}
+                        className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-medium flex items-center"
+                      >
+                        View growth
+                      </Link>
                       <button
                         onClick={() => startEdit(c)}
                         className="h-9 px-3 rounded-md border border-black/10 dark:border-white/20 text-sm"
