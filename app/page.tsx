@@ -1,103 +1,254 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+type Child = {
+  id: string;
+  name: string;
+  birthDate: string; // ISO date string YYYY-MM-DD
+};
+
+const STORAGE_KEY = "children";
+
+function uid() {
+  const uuid =
+    typeof globalThis !== "undefined" &&
+    typeof globalThis.crypto?.randomUUID === "function"
+      ? globalThis.crypto.randomUUID()
+      : null;
+  return uuid ?? `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [children, setChildren] = useState<Child[]>([]);
+  const [name, setName] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingBirthDate, setEditingBirthDate] = useState("");
+  const [hydrated, setHydrated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Child[];
+        if (Array.isArray(parsed)) {
+          setChildren(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      setHydrated(true);
+    }
+  }, []);
+
+  // Persist to localStorage when children changes
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(children));
+    } catch {
+      // ignore
+    }
+  }, [children, hydrated]);
+
+  const sortedChildren = useMemo(() => {
+    return [...children].sort((a, b) => a.name.localeCompare(b.name));
+  }, [children]);
+
+  function resetForm() {
+    setName("");
+    setBirthDate("");
+    setError(null);
+  }
+
+  function validate(n: string, bd: string) {
+    if (!n.trim()) return "Name is required";
+    if (!bd) return "Birth date is required";
+    const d = new Date(bd);
+    if (Number.isNaN(d.getTime())) return "Birth date is invalid";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (d > today) return "Birth date cannot be in the future";
+    return null;
+  }
+
+  function addChild(e: React.FormEvent) {
+    e.preventDefault();
+    const v = validate(name, birthDate);
+    if (v) {
+      setError(v);
+      return;
+    }
+    const newChild: Child = { id: uid(), name: name.trim(), birthDate };
+    setChildren((prev) => [...prev, newChild]);
+    resetForm();
+  }
+
+  function startEdit(c: Child) {
+    setEditingId(c.id);
+    setEditingName(c.name);
+    setEditingBirthDate(c.birthDate);
+    setError(null);
+  }
+
+  function saveEdit(id: string) {
+    const v = validate(editingName, editingBirthDate);
+    if (v) {
+      setError(v);
+      return;
+    }
+    setChildren((prev) =>
+      prev.map((c) =>
+        c.id === id ? { ...c, name: editingName.trim(), birthDate: editingBirthDate } : c
+      )
+    );
+    cancelEdit();
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditingName("");
+    setEditingBirthDate("");
+    setError(null);
+  }
+
+  function removeChild(id: string) {
+    // Simple confirm to prevent accidental deletion
+    const c = children.find((x) => x.id === id);
+    const label = c ? `${c.name} (${c.birthDate})` : "this child";
+    if (confirm(`Delete ${label}?`)) {
+      setChildren((prev) => prev.filter((c) => c.id !== id));
+      if (editingId === id) cancelEdit();
+    }
+  }
+
+  return (
+    <div className="font-sans min-h-screen p-6 sm:p-10 max-w-3xl mx-auto">
+      <header className="mb-8">
+        <h1 className="text-2xl sm:text-3xl font-semibold">Children</h1>
+        <p className="text-sm text-foreground/70 mt-1">
+          Add, edit, and remove your children. Data is saved in your browser.
+        </p>
+      </header>
+
+      <section className="mb-10">
+        <form
+          onSubmit={addChild}
+          className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 items-end"
+        >
+          <div className="flex flex-col gap-1">
+            <label htmlFor="name" className="text-sm">Name</label>
+            <input
+              id="name"
+              name="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-10 rounded-md px-3 border border-black/10 dark:border-white/20 bg-transparent"
+              placeholder="Jane Doe"
+              autoComplete="off"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="birthDate" className="text-sm">Birth date</label>
+            <input
+              id="birthDate"
+              name="birthDate"
+              type="date"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
+              className="h-10 rounded-md px-3 border border-black/10 dark:border-white/20 bg-transparent"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="h-10 sm:h-[42px] mt-1 sm:mt-0 rounded-md px-4 bg-foreground text-background font-medium"
           >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+            Add child
+          </button>
+        </form>
+        {error && (
+          <p role="alert" className="text-red-600 text-sm mt-2">{error}</p>
+        )}
+      </section>
+
+      <section>
+        {!hydrated ? (
+          <p className="text-sm text-foreground/70">Loading…</p>
+        ) : sortedChildren.length === 0 ? (
+          <p className="text-sm text-foreground/70">No children added yet.</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-black/10 dark:divide-white/10 border rounded-md border-black/10 dark:border-white/10">
+            {sortedChildren.map((c) => (
+              <li key={c.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 justify-between">
+                {editingId === c.id ? (
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      className="h-10 rounded-md px-3 border border-black/10 dark:border-white/20 bg-transparent"
+                      placeholder="Name"
+                      autoFocus
+                    />
+                    <input
+                      type="date"
+                      value={editingBirthDate}
+                      onChange={(e) => setEditingBirthDate(e.target.value)}
+                      className="h-10 rounded-md px-3 border border-black/10 dark:border-white/20 bg-transparent"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex-1">
+                    <div className="font-medium">{c.name}</div>
+                    <div className="text-sm text-foreground/70">Born {c.birthDate}</div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  {editingId === c.id ? (
+                    <>
+                      <button
+                        onClick={() => saveEdit(c.id)}
+                        className="h-9 px-3 rounded-md bg-foreground text-background text-sm font-medium"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        className="h-9 px-3 rounded-md border border-black/10 dark:border-white/20 text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => startEdit(c)}
+                        className="h-9 px-3 rounded-md border border-black/10 dark:border-white/20 text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => removeChild(c.id)}
+                        className="h-9 px-3 rounded-md border border-red-600 text-red-600 text-sm"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
+
