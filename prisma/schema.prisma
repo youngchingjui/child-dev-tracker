@@ -7,3 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Child {
+  id            String         @id @default(cuid())
+  name          String
+  birthDate     DateTime?
+  sex           String?
+  measurements  Measurement[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Measurement {
+  id         String   @id @default(cuid())
+  childId    String
+  child      Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  date       DateTime @default(now())
+  heightCm   Float?
+  weightKg   Float?
+  bmi        Float?
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([childId, date])
+}
