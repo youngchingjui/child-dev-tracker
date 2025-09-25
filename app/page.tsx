@@ -8,6 +8,8 @@ import {
   deleteMeasurement,
   getChildren,
   saveChildren,
+  upsertChild,
+  uid,
 } from "@/app/lib/storage";
 
 function formatBMI(bmi: number) {
@@ -31,6 +33,12 @@ export default function Home() {
   const [eDate, setEDate] = useState("");
   const [eHeight, setEHeight] = useState<string>("");
   const [eWeight, setEWeight] = useState<string>("");
+
+  // Add-child UI state
+  const [showAddChild, setShowAddChild] = useState(false);
+  const [childName, setChildName] = useState("");
+  const [childBirthDate, setChildBirthDate] = useState("");
+  const [childError, setChildError] = useState<string | null>(null);
 
   useEffect(() => {
     const list = getChildren();
@@ -157,6 +165,33 @@ export default function Home() {
     resetForms();
   }
 
+  function validateChild(name: string, birth: string): string | null {
+    if (!name.trim()) return "Name is required";
+    if (!birth) return "Birth date is required";
+    const dt = new Date(birth);
+    if (Number.isNaN(dt.getTime())) return "Invalid birth date";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (dt > today) return "Birth date cannot be in the future";
+    return null;
+  }
+
+  function addChild() {
+    setChildError(null);
+    const v = validateChild(childName, childBirthDate);
+    if (v) {
+      setChildError(v);
+      return;
+    }
+    const id = uid();
+    upsertChild({ id, name: childName.trim(), birthDate: childBirthDate, measurements: [] });
+    setActiveId(id);
+    setShowAddChild(false);
+    setChildName("");
+    setChildBirthDate("");
+    refresh();
+  }
+
   return (
     <div className="font-sans min-h-screen p-6 sm:p-10 max-w-4xl mx-auto">
       <header className="mb-6">
@@ -169,7 +204,64 @@ export default function Home() {
       {!hydrated ? (
         <p className="text-sm text-foreground/70">Loading…</p>
       ) : children.length === 0 ? (
-        <p className="text-sm text-foreground/70">No children added yet.</p>
+        <div className="max-w-md">
+          <p className="text-sm text-foreground/70 mb-3">No children added yet.</p>
+          {!showAddChild ? (
+            <button
+              onClick={() => setShowAddChild(true)}
+              className="h-10 rounded-md px-4 bg-foreground text-background font-medium"
+            >
+              Add a child
+            </button>
+          ) : (
+            <div className="mt-2 border rounded-md border-black/10 dark:border-white/20 p-4">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="child-name" className="text-sm">Child name</label>
+                  <input
+                    id="child-name"
+                    value={childName}
+                    onChange={(e) => setChildName(e.target.value)}
+                    placeholder="e.g. Alex"
+                    className="h-10 rounded-md px-3 border border-black/10 dark:border-white/20 bg-transparent"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="child-birth" className="text-sm">Birth date</label>
+                  <input
+                    id="child-birth"
+                    type="date"
+                    value={childBirthDate}
+                    onChange={(e) => setChildBirthDate(e.target.value)}
+                    className="h-10 rounded-md px-3 border border-black/10 dark:border-white/20 bg-transparent"
+                  />
+                </div>
+                {childError && (
+                  <p role="alert" className="text-red-600 text-sm">{childError}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={addChild}
+                    className="h-10 rounded-md px-4 bg-foreground text-background font-medium"
+                  >
+                    Save child
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddChild(false);
+                      setChildName("");
+                      setChildBirthDate("");
+                      setChildError(null);
+                    }}
+                    className="h-10 rounded-md px-4 border border-black/10 dark:border-white/20"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="flex flex-col gap-4">
           {/* Tabs */}
