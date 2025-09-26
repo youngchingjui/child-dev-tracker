@@ -9,6 +9,7 @@ import {
   getChildren,
   saveChildren,
 } from "@/app/lib/storage";
+import { todayYmdLocal } from "@/app/lib/date";
 
 function formatBMI(bmi: number) {
   if (!Number.isFinite(bmi) || bmi <= 0) return "–";
@@ -22,7 +23,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   // Add form state (per active child)
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(todayYmdLocal());
   const [heightCm, setHeightCm] = useState<string>("");
   const [weightKg, setWeightKg] = useState<string>("");
 
@@ -72,7 +73,7 @@ export default function Home() {
   }
 
   function resetForms() {
-    setDate("");
+    setDate(todayYmdLocal());
     setHeightCm("");
     setWeightKg("");
     setEditingId(null);
@@ -96,7 +97,7 @@ export default function Home() {
       heightCm: Number(heightCm),
       weightKg: Number(weightKg),
     });
-    setDate("");
+    setDate(todayYmdLocal());
     setHeightCm("");
     setWeightKg("");
     refresh();
@@ -212,6 +213,7 @@ export default function Home() {
                       id="date"
                       type="date"
                       value={date}
+                      max={todayYmdLocal()}
                       onChange={(e) => setDate(e.target.value)}
                       className="h-10 rounded-md px-3 border border-black/10 dark:border-white/20 bg-transparent"
                     />
@@ -272,6 +274,7 @@ export default function Home() {
                                   <input
                                     type="date"
                                     value={eDate}
+                                    max={todayYmdLocal()}
                                     onChange={(e) => setEDate(e.target.value)}
                                     className="h-9 w-full rounded-md px-2 border border-black/10 dark:border-white/20 bg-transparent"
                                   />
