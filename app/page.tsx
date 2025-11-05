@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Child, Measurement } from "@/app/lib/storage";
+import { bmiFor } from "@/app/lib/storage";
 import {
-  addMeasurement,
-  bmiFor,
-  deleteMeasurement,
-  getChildren,
-  saveChildren,
-} from "@/app/lib/storage";
+  addMeasurementApi,
+  deleteMeasurementApi,
+  getChildrenApi,
+  updateMeasurementApi,
+} from "@/app/lib/api";
 
 function formatBMI(bmi: number) {
   if (!Number.isFinite(bmi) || bmi <= 0) return "–";
@@ -33,10 +33,15 @@ export default function Home() {
   const [eWeight, setEWeight] = useState<string>("");
 
   useEffect(() => {
-    const list = getChildren();
-    setChildren(list);
-    setActiveId((prev) => prev ?? (list[0]?.id ?? null));
-    setHydrated(true);
+    (async () => {
+      try {
+        const list = await getChildrenApi();
+        setChildren(list);
+        setActiveId((prev) => prev ?? (list[0]?.id ?? null));
+      } finally {
+        setHydrated(true);
+      }
+    })();
   }, []);
 
   const activeChild: Child | undefined = useMemo(
@@ -49,8 +54,8 @@ export default function Home() {
     return [...list].sort((a, b) => b.date.localeCompare(a.date));
   }, [activeChild]);
 
-  function refresh() {
-    const list = getChildren();
+  async function refresh() {
+    const list = await getChildrenApi();
     setChildren(list);
   }
 
@@ -82,7 +87,7 @@ export default function Home() {
     setError(null);
   }
 
-  function onAdd(e: React.FormEvent) {
+  async function onAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!activeId) return;
     setError(null);
@@ -91,7 +96,8 @@ export default function Home() {
       setError(v);
       return;
     }
-    addMeasurement(activeId, {
+    await addMeasurementApi({
+      childId: activeId,
       date,
       heightCm: Number(heightCm),
       weightKg: Number(weightKg),
@@ -99,7 +105,7 @@ export default function Home() {
     setDate("");
     setHeightCm("");
     setWeightKg("");
-    refresh();
+    await refresh();
   }
 
   function startEdit(m: Measurement) {
@@ -110,31 +116,20 @@ export default function Home() {
     setError(null);
   }
 
-  function saveEdit(idM: string) {
+  async function saveEdit(idM: string) {
     if (!activeId) return;
     const v = validate(eDate, eHeight, eWeight);
     if (v) {
       setError(v);
       return;
     }
-    // perform in place update for the active child
-    const all = getChildren();
-    const idx = all.findIndex((c) => c.id === activeId);
-    if (idx === -1) return;
-    const list = all[idx].measurements ?? [];
-    const mIdx = list.findIndex((x) => x.id === idM);
-    if (mIdx === -1) return;
-    const next = [...list];
-    next[mIdx] = {
-      ...next[mIdx],
+    await updateMeasurementApi(idM, {
       date: eDate,
       heightCm: Number(eHeight),
       weightKg: Number(eWeight),
-    };
-    all[idx] = { ...all[idx], measurements: next };
-    saveChildren(all);
+    });
     resetForms();
-    refresh();
+    await refresh();
   }
 
   function cancelEdit() {
@@ -144,12 +139,12 @@ export default function Home() {
     setEWeight("");
   }
 
-  function removeMeasurement(idM: string) {
+  async function removeMeasurement(idM: string) {
     if (!activeId) return;
     if (!confirm("Delete this entry?")) return;
-    deleteMeasurement(activeId, idM);
+    await deleteMeasurementApi(idM);
     if (editingId === idM) cancelEdit();
-    refresh();
+    await refresh();
   }
 
   function onSelectChild(id: string) {
@@ -162,7 +157,7 @@ export default function Home() {
       <header className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-semibold">Child Growth Tracker</h1>
         <p className="text-sm text-foreground/70 mt-1">
-          Select a child tab to add height, weight, and BMI entries. Data is saved in your browser.
+          Select a child tab to add height, weight, and BMI entries. Data is saved securely in your account.
         </p>
       </header>
 

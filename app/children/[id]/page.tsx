@@ -3,14 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { Child, Measurement } from "@/app/lib/storage";
+import { bmiFor } from "@/app/lib/storage";
 import {
-  addMeasurement,
-  bmiFor,
-  deleteMeasurement,
-  getChild,
-  saveChildren,
-  getChildren,
-} from "@/app/lib/storage";
+  addMeasurementApi,
+  deleteMeasurementApi,
+  getChildApi,
+  updateMeasurementApi,
+} from "@/app/lib/api";
 
 function formatBMI(bmi: number) {
   if (!Number.isFinite(bmi) || bmi <= 0) return "–";
@@ -38,9 +37,14 @@ export default function ChildDetailPage() {
   const [eWeight, setEWeight] = useState<string>("");
 
   useEffect(() => {
-    const c = getChild(id);
-    setChild(c);
-    setHydrated(true);
+    (async () => {
+      try {
+        const c = await getChildApi(id);
+        setChild(c);
+      } finally {
+        setHydrated(true);
+      }
+    })();
   }, [id]);
 
   const measurements: Measurement[] = useMemo(() => {
@@ -65,12 +69,12 @@ export default function ChildDetailPage() {
     return null;
   }
 
-  function refresh() {
-    const c = getChild(id);
+  async function refresh() {
+    const c = await getChildApi(id);
     setChild(c);
   }
 
-  function onAdd(e: React.FormEvent) {
+  async function onAdd(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const v = validate(date, heightCm, weightKg);
@@ -78,7 +82,8 @@ export default function ChildDetailPage() {
       setError(v);
       return;
     }
-    addMeasurement(id, {
+    await addMeasurementApi({
+      childId: id,
       date,
       heightCm: Number(heightCm),
       weightKg: Number(weightKg),
@@ -86,7 +91,7 @@ export default function ChildDetailPage() {
     setDate("");
     setHeightCm("");
     setWeightKg("");
-    refresh();
+    await refresh();
   }
 
   function startEdit(m: Measurement) {
@@ -97,30 +102,19 @@ export default function ChildDetailPage() {
     setError(null);
   }
 
-  function saveEdit(idM: string) {
+  async function saveEdit(idM: string) {
     const v = validate(eDate, eHeight, eWeight);
     if (v) {
       setError(v);
       return;
     }
-    // perform in place update
-    const all = getChildren();
-    const idx = all.findIndex((c) => c.id === id);
-    if (idx === -1) return;
-    const list = all[idx].measurements ?? [];
-    const mIdx = list.findIndex((x) => x.id === idM);
-    if (mIdx === -1) return;
-    const next = [...list];
-    next[mIdx] = {
-      ...next[mIdx],
+    await updateMeasurementApi(idM, {
       date: eDate,
       heightCm: Number(eHeight),
       weightKg: Number(eWeight),
-    };
-    all[idx] = { ...all[idx], measurements: next };
-    saveChildren(all);
+    });
     cancelEdit();
-    refresh();
+    await refresh();
   }
 
   function cancelEdit() {
@@ -130,11 +124,11 @@ export default function ChildDetailPage() {
     setEWeight("");
   }
 
-  function removeMeasurement(idM: string) {
+  async function removeMeasurement(idM: string) {
     if (!confirm("Delete this entry?")) return;
-    deleteMeasurement(id, idM);
+    await deleteMeasurementApi(idM);
     if (editingId === idM) cancelEdit();
-    refresh();
+    await refresh();
   }
 
   if (!hydrated) {
